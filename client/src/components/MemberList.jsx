@@ -3,9 +3,13 @@ import Avatar from './Avatar.jsx';
 import { formatTime } from '../utils/format.js';
 import { roomApi } from '../utils/api.js';
 
-export default function MemberList({ members, currentUserId, room }) {
+export default function MemberList({ members, currentUserId, room, onStartPrivateChat }) {
   const handleStartPrivateChat = async (user) => {
     if (user.id === currentUserId) return;
+    if (onStartPrivateChat) {
+      onStartPrivateChat(user);
+      return;
+    }
     try {
       await roomApi.createPrivateRoom(user.id);
       window.location.reload();
@@ -50,6 +54,9 @@ export default function MemberList({ members, currentUserId, room }) {
                 加入于 {formatTime(member.joined_at)}
               </div>
             </div>
+            {member.id !== currentUserId && (
+              <span style={{ fontSize: 11, color: '#667eea', flexShrink: 0 }}>💬</span>
+            )}
           </div>
         ))}
       </div>

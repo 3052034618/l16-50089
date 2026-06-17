@@ -38,9 +38,6 @@ export function SocketProvider({ children }) {
       setConnected(true);
       setReconnecting(false);
       setReconnectAttempts(0);
-      if (wasDisconnected) {
-        setWasDisconnected(false);
-      }
     });
 
     socket.on('disconnect', (reason) => {

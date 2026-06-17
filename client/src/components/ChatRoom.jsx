@@ -16,7 +16,8 @@ export default function ChatRoom({
   prependMessages,
   addMessage,
   mentionedMessageIds,
-  onMarkRead
+  onMarkRead,
+  onStartPrivateChat
 }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [members, setMembers] = useState([]);
@@ -24,16 +25,14 @@ export default function ChatRoom({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [typingUsers, setTypingUsers] = useState([]);
-  const [syncingUnread, setSyncingUnread] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const messageRefs = useRef({});
   const joinedRef = useRef(false);
-  const lastConnectedRef = useRef(connected);
-  const initialLoadedRef = useRef(false);
-  const { emit, on, off, wasDisconnected, setWasDisconnected } = useSocket();
+  const hasCheckedCacheRef = useRef(false);
+  const { emit, on, off } = useSocket();
 
   const loadHistory = useCallback(async (before = null) => {
     try {
@@ -43,7 +42,6 @@ export default function ChatRoom({
         prependMessages(res.data.messages);
       } else {
         setMessages(res.data.messages);
-        initialLoadedRef.current = true;
       }
       if (res.data.messages.length < 50) {
         setHasMore(false);
@@ -67,10 +65,15 @@ export default function ChatRoom({
   useEffect(() => {
     if (!room) return;
     joinedRef.current = false;
-    initialLoadedRef.current = false;
+    hasCheckedCacheRef.current = false;
     setHasMore(true);
     setHighlightedMessageId(null);
-    loadHistory();
+
+    if (messages.length === 0) {
+      loadHistory();
+    } else {
+      hasCheckedCacheRef.current = true;
+    }
     loadMembers();
     onMarkRead();
 
@@ -98,8 +101,6 @@ export default function ChatRoom({
 
     const handleNewMessage = (message) => {
       if (message.room_id !== room.id) return;
-      if (!initialLoadedRef.current) return;
-      addMessage(message);
       setTimeout(() => {
         if (messagesContainerRef.current) {
           const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -110,7 +111,7 @@ export default function ChatRoom({
       }, 50);
     };
 
-    const handleMessageRecalled = ({ messageId, message }) => {
+    const handleMessageRecalled = ({ messageId }) => {
       setMessages(prev => prev.map(m =>
         m.id === messageId ? { ...m, is_recalled: 1 } : m
       ));
@@ -148,30 +149,7 @@ export default function ChatRoom({
       off('message_recalled', handleMessageRecalled);
       off('user_typing', handleUserTyping);
     };
-  }, [connected, room, emit, on, off, addMessage, setMessages]);
-
-  useEffect(() => {
-    if (!lastConnectedRef.current && connected && room && wasDisconnected) {
-      joinedRef.current = false;
-      emit('join_room', { roomId: room.id });
-
-      setSyncingUnread(true);
-      emit('sync_unread', { rooms: [room.id] }, (res) => {
-        setSyncingUnread(false);
-        if (res?.success && res.data?.[room.id]) {
-          const unreadMsgs = res.data[room.id].messages || [];
-          if (unreadMsgs.length > 0 && initialLoadedRef.current) {
-            unreadMsgs.forEach(msg => {
-              addMessage(msg);
-            });
-            scrollToBottom();
-          }
-        }
-      });
-      loadMembers();
-    }
-    lastConnectedRef.current = connected;
-  }, [connected, room, wasDisconnected, emit, loadMembers, addMessage]);
+  }, [connected, room, emit, on, off, setMessages]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -322,17 +300,6 @@ export default function ChatRoom({
               私聊
             </span>
           )}
-          {syncingUnread && (
-            <span style={{
-              fontSize: 11,
-              color: '#667eea',
-              background: '#f0f4ff',
-              padding: '2px 8px',
-              borderRadius: 10
-            }}>
-              同步中...
-            </span>
-          )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
@@ -403,7 +370,7 @@ export default function ChatRoom({
         {showMembers && (
           <div style={{ width: 240, borderLeft: '1px solid #eee', background: '#fff' }}>
             <OnlineUsers onlineUsers={onlineUsers} members={members} />
-            <MemberList members={members} currentUserId={currentUser.id} room={room} />
+            <MemberList members={members} currentUserId={currentUser.id} room={room} onStartPrivateChat={onStartPrivateChat} />
           </div>
         )}
       </div>

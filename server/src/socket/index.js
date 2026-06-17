@@ -82,8 +82,6 @@ module.exports = function setupSocket(io) {
       socket.join(roomId);
       addUserToRoom(user.id, roomId, socket.id);
 
-      await Room.updateLastRead(roomId, user.id);
-
       const onlineList = getOnlineUsersInRoom(roomId);
       io.to(roomId).emit('user_online', {
         user: { id: user.id, nickname: user.nickname, avatar: user.avatar },
@@ -175,7 +173,9 @@ module.exports = function setupSocket(io) {
           const lastRead = await Room.getLastRead(roomId, user.id);
           const messages = await Message.getUnread(roomId, user.id, lastRead);
           result[roomId] = { messages, lastReadAt: lastRead };
-          await Room.updateLastRead(roomId, user.id);
+          if (messages.length > 0) {
+            await Room.updateLastRead(roomId, user.id);
+          }
         }
         callback && callback({ success: true, data: result });
       } catch (e) {

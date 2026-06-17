@@ -99,7 +99,7 @@ const Room = {
     for (const roomId of user2Rooms) {
       if (user1Rooms.has(roomId)) {
         const room = await get('rooms', { id: roomId });
-        if (room && room.type === 'private') {
+        if (room && room.type === 'private' && /^私聊_/.test(room.name || '')) {
           return enrichWithCount(room, userId1);
         }
       }
