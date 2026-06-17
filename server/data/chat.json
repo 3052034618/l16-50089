@@ -1,0 +1,44 @@
+{
+  "users": [
+    {
+      "id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
+      "nickname": "Alice",
+      "avatar": "",
+      "password": "$2a$10$yl9cGs733c87/4zveij0cuEAUxFSIAJcVXS/QRETWj9FHyLhXhCEO",
+      "created_at": 1781714419957,
+      "last_online": 1781714794149
+    }
+  ],
+  "rooms": [
+    {
+      "id": "ca7e1d4c-a95b-4943-b716-8efdff5237d7",
+      "name": "技术交流群",
+      "type": "public",
+      "password": "",
+      "creator_id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
+      "created_at": 1781714611888
+    }
+  ],
+  "room_members": [
+    {
+      "room_id": "ca7e1d4c-a95b-4943-b716-8efdff5237d7",
+      "user_id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
+      "joined_at": 1781714611888,
+      "last_read_at": 1781714794156
+    }
+  ],
+  "messages": [
+    {
+      "id": "68eb56ce-0657-4f1c-837f-142aa32c5915",
+      "room_id": "ca7e1d4c-a95b-4943-b716-8efdff5237d7",
+      "sender_id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
+      "type": "text",
+      "content": "大家好！这是第一条测试消息",
+      "file_name": "",
+      "file_size": 0,
+      "mentions": "[]",
+      "is_recalled": 0,
+      "created_at": 1781714723168
+    }
+  ]
+}
