@@ -76,6 +76,39 @@ const Message = {
       result.push(await enrichMessage(msg));
     }
     return result;
+  },
+
+  async search(roomId, { keyword = '', senderId = '', type = '' }) {
+    const rows = await all('messages', { room_id: roomId }, { orderBy: ['created_at', 'desc'] });
+    let filtered = rows;
+
+    if (keyword && keyword.trim()) {
+      const kw = keyword.toLowerCase().trim();
+      filtered = filtered.filter(m => {
+        if (m.type === 'text') {
+          return (m.content || '').toLowerCase().includes(kw);
+        }
+        if (m.file_name) {
+          return m.file_name.toLowerCase().includes(kw);
+        }
+        return false;
+      });
+    }
+
+    if (senderId) {
+      filtered = filtered.filter(m => m.sender_id === senderId);
+    }
+
+    if (type && type !== 'all') {
+      filtered = filtered.filter(m => m.type === type);
+    }
+
+    filtered = filtered.slice(0, 100);
+    const result = [];
+    for (const msg of filtered) {
+      result.push(await enrichMessage(msg));
+    }
+    return result;
   }
 };
 

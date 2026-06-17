@@ -59,9 +59,9 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { password = '' } = req.body;
-    const room = await Room.findById(id);
+    const room = await Room.findById(id, req.user.id);
     if (!room) return res.status(404).json({ error: '房间不存在' });
-    if (room.type === 'private') {
+    if (room.type === 'private' && !room.is_private_chat) {
       const valid = await Room.verifyPassword(id, password);
       if (!valid) return res.status(400).json({ error: '密码错误' });
     }
@@ -69,7 +69,8 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
     if (!isMember) {
       await Room.addMember(id, req.user.id);
     }
-    res.json({ room });
+    const updatedRoom = await Room.findById(id, req.user.id);
+    res.json({ room: updatedRoom });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: '加入房间失败' });
@@ -125,6 +126,20 @@ router.get('/:id/unread', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: '获取未读消息失败' });
+  }
+});
+
+router.get('/:id/search', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { keyword = '', senderId = '', type = '' } = req.query;
+    const isMember = await Room.isMember(id, req.user.id);
+    if (!isMember) return res.status(403).json({ error: '不是房间成员' });
+    const messages = await Message.search(id, { keyword, senderId, type });
+    res.json({ messages });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '搜索失败' });
   }
 });
 

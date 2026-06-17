@@ -4,9 +4,15 @@ const bcrypt = require('bcryptjs');
 
 function enrichRoom(room) {
   if (!room) return null;
+  const isPrivateChat = /^私聊_/.test(room.name || '');
+  const displayType = room.type === 'private' && isPrivateChat ? 'direct' : room.type;
+  const displayName = isPrivateChat ? '' : room.name;
   return {
     ...room,
-    member_count: 0
+    member_count: 0,
+    display_type: displayType,
+    display_name: displayName,
+    is_private_chat: isPrivateChat
   };
 }
 
@@ -15,12 +21,27 @@ async function getMemberCount(roomId) {
   return members.length;
 }
 
-async function enrichWithCount(room) {
+async function enrichWithCount(room, userId) {
   if (!room) return null;
-  return {
-    ...room,
-    member_count: await getMemberCount(room.id)
-  };
+  const enriched = enrichRoom(room);
+  enriched.member_count = await getMemberCount(room.id);
+
+  if (enriched.is_private_chat && userId) {
+    const members = await all('room_members', { room_id: room.id });
+    const otherMember = members.find(m => m.user_id !== userId);
+    if (otherMember) {
+      const otherUser = await get('users', { id: otherMember.user_id });
+      if (otherUser) {
+        enriched.display_name = otherUser.nickname;
+        enriched.other_user = {
+          id: otherUser.id,
+          nickname: otherUser.nickname,
+          avatar: otherUser.avatar || ''
+        };
+      }
+    }
+  }
+  return enriched;
 }
 
 const Room = {
@@ -43,7 +64,7 @@ const Room = {
       joined_at: now,
       last_read_at: now
     });
-    return enrichWithCount(room);
+    return enrichWithCount(room, creatorId);
   },
 
   async createPrivateRoom(userId1, userId2) {
@@ -67,7 +88,7 @@ const Room = {
     await insert('room_members', {
       room_id: id, user_id: userId2, joined_at: now, last_read_at: now
     });
-    return enrichWithCount(room);
+    return enrichWithCount(room, userId1);
   },
 
   async findPrivateRoomByUsers(userId1, userId2) {
@@ -79,16 +100,16 @@ const Room = {
       if (user1Rooms.has(roomId)) {
         const room = await get('rooms', { id: roomId });
         if (room && room.type === 'private') {
-          return enrichWithCount(room);
+          return enrichWithCount(room, userId1);
         }
       }
     }
     return null;
   },
 
-  async findById(id) {
+  async findById(id, userId) {
     const room = await get('rooms', { id });
-    return enrichWithCount(room);
+    return enrichWithCount(room, userId);
   },
 
   async findPublicRooms() {
@@ -108,7 +129,7 @@ const Room = {
     const result = [];
     for (const room of allRooms) {
       if (roomIds.includes(room.id)) {
-        result.push(await enrichWithCount(room));
+        result.push(await enrichWithCount(room, userId));
       }
     }
     return result;

@@ -2,7 +2,15 @@ import React from 'react';
 import MessageItem from './MessageItem.jsx';
 import { formatTime } from '../utils/format.js';
 
-export default function MessageList({ messages, currentUser, members, onRecall, mentionedMessageIds = [] }) {
+export default function MessageList({
+  messages,
+  currentUser,
+  members,
+  onRecall,
+  mentionedMessageIds = [],
+  highlightedMessageId = null,
+  messageRefs = null
+}) {
   const renderWithTimeDividers = () => {
     const result = [];
     let lastDate = null;
@@ -12,7 +20,7 @@ export default function MessageList({ messages, currentUser, members, onRecall, 
       if (msgDate !== lastDate) {
         lastDate = msgDate;
         result.push(
-          <div key={`date-${msg.created_at}`} style={{
+          <div key={`date-${msg.created_at}-${index}`} style={{
             display: 'flex',
             justifyContent: 'center',
             margin: '16px 0'
@@ -29,14 +37,17 @@ export default function MessageList({ messages, currentUser, members, onRecall, 
           </div>
         );
       }
+      const setRef = messageRefs ? (el) => { messageRefs.current[msg.id] = el; } : undefined;
       result.push(
-        <MessageItem
-          key={msg.id}
-          message={msg}
-          isSelf={msg.sender_id === currentUser.id}
-          onRecall={onRecall}
-          isMentioned={mentionedMessageIds.includes(msg.id)}
-        />
+        <div key={msg.id} ref={setRef}>
+          <MessageItem
+            message={msg}
+            isSelf={msg.sender_id === currentUser.id}
+            onRecall={onRecall}
+            isMentioned={mentionedMessageIds.includes(msg.id)}
+            isHighlighted={highlightedMessageId === msg.id}
+          />
+        </div>
       );
     });
 

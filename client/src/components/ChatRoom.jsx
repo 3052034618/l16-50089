@@ -5,6 +5,7 @@ import MessageList from './MessageList.jsx';
 import MessageInput from './MessageInput.jsx';
 import OnlineUsers from './OnlineUsers.jsx';
 import MemberList from './MemberList.jsx';
+import MessageSearchModal from './MessageSearchModal.jsx';
 
 export default function ChatRoom({
   room,
@@ -24,8 +25,11 @@ export default function ChatRoom({
   const [hasMore, setHasMore] = useState(true);
   const [typingUsers, setTypingUsers] = useState([]);
   const [syncingUnread, setSyncingUnread] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const messageRefs = useRef({});
   const joinedRef = useRef(false);
   const lastConnectedRef = useRef(connected);
   const initialLoadedRef = useRef(false);
@@ -65,6 +69,7 @@ export default function ChatRoom({
     joinedRef.current = false;
     initialLoadedRef.current = false;
     setHasMore(true);
+    setHighlightedMessageId(null);
     loadHistory();
     loadMembers();
     onMarkRead();
@@ -94,13 +99,19 @@ export default function ChatRoom({
     const handleNewMessage = (message) => {
       if (message.room_id !== room.id) return;
       if (!initialLoadedRef.current) return;
-      if (messages.some(m => m.id === message.id)) return;
       addMessage(message);
-      scrollToBottom();
+      setTimeout(() => {
+        if (messagesContainerRef.current) {
+          const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+          if (scrollHeight - scrollTop - clientHeight < 100) {
+            scrollToBottom();
+          }
+        }
+      }, 50);
     };
 
     const handleMessageRecalled = ({ messageId, message }) => {
-      setMessages(messages.map(m =>
+      setMessages(prev => prev.map(m =>
         m.id === messageId ? { ...m, is_recalled: 1 } : m
       ));
     };
@@ -137,7 +148,7 @@ export default function ChatRoom({
       off('message_recalled', handleMessageRecalled);
       off('user_typing', handleUserTyping);
     };
-  }, [connected, room, emit, on, off, messages, addMessage, setMessages]);
+  }, [connected, room, emit, on, off, addMessage, setMessages]);
 
   useEffect(() => {
     if (!lastConnectedRef.current && connected && room && wasDisconnected) {
@@ -151,19 +162,16 @@ export default function ChatRoom({
           const unreadMsgs = res.data[room.id].messages || [];
           if (unreadMsgs.length > 0 && initialLoadedRef.current) {
             unreadMsgs.forEach(msg => {
-              if (!messages.some(m => m.id === msg.id)) {
-                addMessage(msg);
-              }
+              addMessage(msg);
             });
             scrollToBottom();
           }
         }
       });
       loadMembers();
-      setWasDisconnected(false);
     }
     lastConnectedRef.current = connected;
-  }, [connected, room, wasDisconnected, emit, loadMembers, messages, addMessage, setWasDisconnected]);
+  }, [connected, room, wasDisconnected, emit, loadMembers, addMessage]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -171,6 +179,51 @@ export default function ChatRoom({
         messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
     }, 50);
+  };
+
+  const ensureMessageLoaded = async (targetMessage) => {
+    const allLoaded = messages;
+    if (allLoaded.some(m => m.id === targetMessage.id)) {
+      return true;
+    }
+
+    const targetTime = targetMessage.created_at;
+    const firstMsg = allLoaded[0];
+    const lastMsg = allLoaded[allLoaded.length - 1];
+
+    if (firstMsg && targetTime < firstMsg.created_at) {
+      let currentBefore = firstMsg.created_at;
+      while (currentBefore > targetTime) {
+        const res = await roomApi.getMessages(room.id, 50, currentBefore);
+        if (res.data.messages.length === 0) break;
+        prependMessages(res.data.messages);
+        const oldestNew = res.data.messages[0];
+        if (!oldestNew || oldestNew.created_at <= targetTime) break;
+        currentBefore = oldestNew.created_at;
+        if (res.data.messages.length < 50) break;
+      }
+    } else if (lastMsg && targetTime > lastMsg.created_at) {
+      await loadHistory();
+    }
+    return true;
+  };
+
+  const handleJumpToMessage = async (targetMessage) => {
+    await ensureMessageLoaded(targetMessage);
+
+    setTimeout(() => {
+      setHighlightedMessageId(targetMessage.id);
+      const targetEl = messageRefs.current[targetMessage.id];
+      if (targetEl && messagesContainerRef.current) {
+        const container = messagesContainerRef.current;
+        const targetTop = targetEl.offsetTop;
+        container.scrollTo({
+          top: targetTop - container.clientHeight / 2 + targetEl.offsetHeight / 2,
+          behavior: 'smooth'
+        });
+      }
+      setTimeout(() => setHighlightedMessageId(null), 3000);
+    }, 100);
   };
 
   const handleScroll = (e) => {
@@ -216,6 +269,19 @@ export default function ChatRoom({
     }
   };
 
+  const getRoomDisplayName = () => {
+    if (room.is_private_chat && room.other_user) {
+      return room.other_user.nickname;
+    }
+    return room.display_name || room.name;
+  };
+
+  const getRoomIcon = () => {
+    if (room.is_private_chat) return '💬 ';
+    if (room.type === 'private') return '🔒 ';
+    return '👥 ';
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       <div style={{
@@ -228,12 +294,34 @@ export default function ChatRoom({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 16, fontWeight: 500 }}>
-            {room.type === 'private' ? '🔒 ' : ''}
-            {room.name}
+            {getRoomIcon()}
+            {getRoomDisplayName()}
           </div>
           <div style={{ fontSize: 12, color: '#999' }}>
             {onlineUsers.length} 人在线
           </div>
+          {room.type === 'private' && !room.is_private_chat && (
+            <span style={{
+              fontSize: 10,
+              padding: '2px 8px',
+              background: '#fef3e2',
+              color: '#e67e22',
+              borderRadius: 8
+            }}>
+              加密群
+            </span>
+          )}
+          {room.is_private_chat && (
+            <span style={{
+              fontSize: 10,
+              padding: '2px 8px',
+              background: '#e8f5e9',
+              color: '#27ae60',
+              borderRadius: 8
+            }}>
+              私聊
+            </span>
+          )}
           {syncingUnread && (
             <span style={{
               fontSize: 11,
@@ -246,18 +334,32 @@ export default function ChatRoom({
             </span>
           )}
         </div>
-        <button
-          onClick={() => setShowMembers(!showMembers)}
-          style={{
-            padding: '6px 12px',
-            background: '#f5f5f5',
-            borderRadius: 4,
-            fontSize: 12,
-            color: '#555'
-          }}
-        >
-          👥 {members.length}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => setShowSearch(true)}
+            style={{
+              padding: '6px 12px',
+              background: '#f5f5f5',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#555'
+            }}
+          >
+            🔍 搜索
+          </button>
+          <button
+            onClick={() => setShowMembers(!showMembers)}
+            style={{
+              padding: '6px 12px',
+              background: '#f5f5f5',
+              borderRadius: 4,
+              fontSize: 12,
+              color: '#555'
+            }}
+          >
+            👥 {members.length}
+          </button>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -282,6 +384,8 @@ export default function ChatRoom({
             members={members}
             onRecall={handleRecall}
             mentionedMessageIds={mentionedMessageIds}
+            highlightedMessageId={highlightedMessageId}
+            messageRefs={messageRefs}
           />
           <div ref={messagesEndRef} />
           {typingUsers.length > 0 && (
@@ -311,6 +415,15 @@ export default function ChatRoom({
         onTyping={handleTyping}
         disabled={!connected}
       />
+
+      {showSearch && (
+        <MessageSearchModal
+          room={room}
+          members={members}
+          onClose={() => setShowSearch(false)}
+          onJumpToMessage={handleJumpToMessage}
+        />
+      )}
     </div>
   );
 }

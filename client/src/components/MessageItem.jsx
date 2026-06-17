@@ -4,7 +4,7 @@ import { formatTime, formatFileSize } from '../utils/format.js';
 
 const RECALL_WINDOW_MS = 2 * 60 * 1000;
 
-export default function MessageItem({ message, isSelf, onRecall, isMentioned }) {
+export default function MessageItem({ message, isSelf, onRecall, isMentioned, isHighlighted }) {
   const [showMenu, setShowMenu] = useState(false);
   const canRecall = isSelf && !message.is_recalled &&
     (Date.now() - message.created_at) < RECALL_WINDOW_MS;
@@ -122,6 +122,18 @@ export default function MessageItem({ message, isSelf, onRecall, isMentioned }) 
     });
   };
 
+  const highlightBg = isHighlighted
+    ? 'linear-gradient(90deg, #fff59d 0%, #fffde7 100%)'
+    : isMentioned
+    ? 'linear-gradient(90deg, #fff9c4 0%, transparent 100%)'
+    : 'transparent';
+  const highlightBorder = isHighlighted
+    ? '4px solid #f9a825'
+    : isMentioned
+    ? '4px solid #fbc02d'
+    : 'none';
+  const showHighlightPad = isHighlighted || isMentioned;
+
   return (
     <div
       style={{
@@ -129,12 +141,13 @@ export default function MessageItem({ message, isSelf, onRecall, isMentioned }) 
         marginBottom: 16,
         justifyContent: isSelf ? 'flex-end' : 'flex-start',
         position: 'relative',
-        padding: isMentioned ? '8px' : 0,
-        marginLeft: isMentioned ? -8 : 0,
-        marginRight: isMentioned ? -8 : 0,
-        background: isMentioned ? 'linear-gradient(90deg, #fff9c4 0%, transparent 100%)' : 'transparent',
-        borderLeft: isMentioned ? '4px solid #fbc02d' : 'none',
-        borderRadius: isMentioned ? 4 : 0
+        padding: showHighlightPad ? '8px' : 0,
+        marginLeft: showHighlightPad ? -8 : 0,
+        marginRight: showHighlightPad ? -8 : 0,
+        background: highlightBg,
+        borderLeft: highlightBorder,
+        borderRadius: showHighlightPad ? 4 : 0,
+        transition: 'background 0.3s ease, border-left 0.3s ease'
       }}
       onMouseEnter={() => canRecall && setShowMenu(true)}
       onMouseLeave={() => setShowMenu(false)}

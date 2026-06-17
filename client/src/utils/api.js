@@ -52,7 +52,9 @@ export const roomApi = {
   getMessages: (roomId, limit = 50, before = null) =>
     api.get(`/rooms/${roomId}/messages`, { params: { limit, before } }),
   markRead: (roomId) => api.post(`/rooms/${roomId}/read`),
-  getUnread: (roomId) => api.get(`/rooms/${roomId}/unread`)
+  getUnread: (roomId) => api.get(`/rooms/${roomId}/unread`),
+  searchMessages: (roomId, { keyword = '', senderId = '', type = '' }) =>
+    api.get(`/rooms/${roomId}/search`, { params: { keyword, senderId, type } })
 };
 
 export const uploadApi = {
