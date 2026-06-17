@@ -6,8 +6,17 @@ import MessageInput from './MessageInput.jsx';
 import OnlineUsers from './OnlineUsers.jsx';
 import MemberList from './MemberList.jsx';
 
-export default function ChatRoom({ room, currentUser, connected }) {
-  const [messages, setMessages] = useState([]);
+export default function ChatRoom({
+  room,
+  currentUser,
+  connected,
+  messages,
+  setMessages,
+  prependMessages,
+  addMessage,
+  mentionedMessageIds,
+  onMarkRead
+}) {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [members, setMembers] = useState([]);
   const [showMembers, setShowMembers] = useState(true);
@@ -19,6 +28,7 @@ export default function ChatRoom({ room, currentUser, connected }) {
   const messagesContainerRef = useRef(null);
   const joinedRef = useRef(false);
   const lastConnectedRef = useRef(connected);
+  const initialLoadedRef = useRef(false);
   const { emit, on, off, wasDisconnected, setWasDisconnected } = useSocket();
 
   const loadHistory = useCallback(async (before = null) => {
@@ -26,9 +36,10 @@ export default function ChatRoom({ room, currentUser, connected }) {
       setLoadingHistory(true);
       const res = await roomApi.getMessages(room.id, 50, before);
       if (before) {
-        setMessages(prev => [...res.data.messages, ...prev]);
+        prependMessages(res.data.messages);
       } else {
         setMessages(res.data.messages);
+        initialLoadedRef.current = true;
       }
       if (res.data.messages.length < 50) {
         setHasMore(false);
@@ -38,7 +49,7 @@ export default function ChatRoom({ room, currentUser, connected }) {
     } finally {
       setLoadingHistory(false);
     }
-  }, [room.id]);
+  }, [room.id, prependMessages, setMessages]);
 
   const loadMembers = useCallback(async () => {
     try {
@@ -52,10 +63,11 @@ export default function ChatRoom({ room, currentUser, connected }) {
   useEffect(() => {
     if (!room) return;
     joinedRef.current = false;
-    setMessages([]);
+    initialLoadedRef.current = false;
     setHasMore(true);
     loadHistory();
     loadMembers();
+    onMarkRead();
 
     return () => {
       if (connected && joinedRef.current) {
@@ -81,15 +93,14 @@ export default function ChatRoom({ room, currentUser, connected }) {
 
     const handleNewMessage = (message) => {
       if (message.room_id !== room.id) return;
-      setMessages(prev => {
-        if (prev.some(m => m.id === message.id)) return prev;
-        return [...prev, message];
-      });
+      if (!initialLoadedRef.current) return;
+      if (messages.some(m => m.id === message.id)) return;
+      addMessage(message);
       scrollToBottom();
     };
 
     const handleMessageRecalled = ({ messageId, message }) => {
-      setMessages(prev => prev.map(m =>
+      setMessages(messages.map(m =>
         m.id === messageId ? { ...m, is_recalled: 1 } : m
       ));
     };
@@ -126,7 +137,7 @@ export default function ChatRoom({ room, currentUser, connected }) {
       off('message_recalled', handleMessageRecalled);
       off('user_typing', handleUserTyping);
     };
-  }, [connected, room, emit, on, off]);
+  }, [connected, room, emit, on, off, messages, addMessage, setMessages]);
 
   useEffect(() => {
     if (!lastConnectedRef.current && connected && room && wasDisconnected) {
@@ -138,20 +149,21 @@ export default function ChatRoom({ room, currentUser, connected }) {
         setSyncingUnread(false);
         if (res?.success && res.data?.[room.id]) {
           const unreadMsgs = res.data[room.id].messages || [];
-          if (unreadMsgs.length > 0) {
-            setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.id));
-              const newMsgs = unreadMsgs.filter(m => !existingIds.has(m.id));
-              return [...prev, ...newMsgs];
+          if (unreadMsgs.length > 0 && initialLoadedRef.current) {
+            unreadMsgs.forEach(msg => {
+              if (!messages.some(m => m.id === msg.id)) {
+                addMessage(msg);
+              }
             });
             scrollToBottom();
           }
         }
       });
       loadMembers();
+      setWasDisconnected(false);
     }
     lastConnectedRef.current = connected;
-  }, [connected, room, wasDisconnected, emit, loadMembers]);
+  }, [connected, room, wasDisconnected, emit, loadMembers, messages, addMessage, setWasDisconnected]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -222,6 +234,17 @@ export default function ChatRoom({ room, currentUser, connected }) {
           <div style={{ fontSize: 12, color: '#999' }}>
             {onlineUsers.length} 人在线
           </div>
+          {syncingUnread && (
+            <span style={{
+              fontSize: 11,
+              color: '#667eea',
+              background: '#f0f4ff',
+              padding: '2px 8px',
+              borderRadius: 10
+            }}>
+              同步中...
+            </span>
+          )}
         </div>
         <button
           onClick={() => setShowMembers(!showMembers)}
@@ -258,6 +281,7 @@ export default function ChatRoom({ room, currentUser, connected }) {
             currentUser={currentUser}
             members={members}
             onRecall={handleRecall}
+            mentionedMessageIds={mentionedMessageIds}
           />
           <div ref={messagesEndRef} />
           {typingUsers.length > 0 && (

@@ -2,7 +2,7 @@ import React from 'react';
 import MessageItem from './MessageItem.jsx';
 import { formatTime } from '../utils/format.js';
 
-export default function MessageList({ messages, currentUser, members, onRecall }) {
+export default function MessageList({ messages, currentUser, members, onRecall, mentionedMessageIds = [] }) {
   const renderWithTimeDividers = () => {
     const result = [];
     let lastDate = null;
@@ -35,6 +35,7 @@ export default function MessageList({ messages, currentUser, members, onRecall }
           message={msg}
           isSelf={msg.sender_id === currentUser.id}
           onRecall={onRecall}
+          isMentioned={mentionedMessageIds.includes(msg.id)}
         />
       );
     });

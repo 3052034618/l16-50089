@@ -4,7 +4,7 @@ import { formatTime } from '../utils/format.js';
 import CreateRoomModal from './CreateRoomModal.jsx';
 import JoinRoomModal from './JoinRoomModal.jsx';
 
-export default function RoomList({ myRooms, currentRoom, onSelectRoom, onRoomCreated, onRefresh }) {
+export default function RoomList({ myRooms, currentRoom, onSelectRoom, onRoomCreated, onRefresh, roomUnread = {} }) {
   const [publicRooms, setPublicRooms] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
@@ -12,8 +12,10 @@ export default function RoomList({ myRooms, currentRoom, onSelectRoom, onRoomCre
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadPublicRooms();
-  }, []);
+    if (tab === 'public') {
+      loadPublicRooms();
+    }
+  }, [tab]);
 
   const loadPublicRooms = async () => {
     try {
@@ -143,12 +145,44 @@ export default function RoomList({ myRooms, currentRoom, onSelectRoom, onRoomCre
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontWeight: 500, fontSize: 14, color: '#333' }}>
-                    {room.type === 'private' ? '🔒 ' : ''}
-                    {room.name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 500, fontSize: 14, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {room.type === 'private' ? '🔒 ' : ''}
+                      {room.name}
+                    </span>
+                    {isMyRoom && roomUnread[room.id]?.hasMention && (
+                      <span style={{
+                        background: '#e74c3c',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        padding: '1px 5px',
+                        borderRadius: 8,
+                        minWidth: 16,
+                        textAlign: 'center',
+                        flexShrink: 0
+                      }}>
+                        @
+                      </span>
+                    )}
+                    {isMyRoom && roomUnread[room.id]?.unread > 0 && !roomUnread[room.id]?.hasMention && (
+                      <span style={{
+                        background: '#e74c3c',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        padding: '2px 6px',
+                        borderRadius: 10,
+                        minWidth: 18,
+                        textAlign: 'center',
+                        flexShrink: 0
+                      }}>
+                        {roomUnread[room.id].unread > 99 ? '99+' : roomUnread[room.id].unread}
+                      </span>
+                    )}
                   </div>
                   {!isMyRoom && (
-                    <span style={{ fontSize: 11, color: '#999' }}>未加入</span>
+                    <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>未加入</span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>

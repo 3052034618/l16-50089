@@ -14,11 +14,13 @@ export default function JoinRoomModal({ publicRooms, onClose, onJoined }) {
       return;
     }
     setLoading(true);
+    setError('');
     try {
       const res = await roomApi.joinRoom(selectedRoomId, password);
       onJoined(res.data.room);
     } catch (err) {
       setError(err.response?.data?.error || '加入失败');
+      if (password) setPassword('');
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,11 @@ export default function JoinRoomModal({ publicRooms, onClose, onJoined }) {
                 {publicRooms.map(room => (
                   <div
                     key={room.id}
-                    onClick={() => setSelectedRoomId(room.id)}
+                    onClick={() => {
+                      setSelectedRoomId(room.id);
+                      setPassword('');
+                      setError('');
+                    }}
                     style={{
                       padding: '10px 12px',
                       borderBottom: '1px solid #f5f5f5',
@@ -72,9 +78,14 @@ export default function JoinRoomModal({ publicRooms, onClose, onJoined }) {
                       background: selectedRoomId === room.id ? '#f0f4ff' : '#fff'
                     }}
                   >
-                    <div style={{ fontSize: 14 }}>
+                    <div style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
                       {room.type === 'private' ? '🔒 ' : ''}
                       {room.name}
+                      {room.type === 'private' && (
+                        <span style={{ fontSize: 10, color: '#e67e22', background: '#fef3e2', padding: '1px 6px', borderRadius: 8 }}>
+                          需要密码
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
                       {room.member_count} 人
@@ -109,7 +120,21 @@ export default function JoinRoomModal({ publicRooms, onClose, onJoined }) {
             return null;
           })()}
           {error && (
-            <div style={{ color: '#c33', fontSize: 13, marginBottom: 16 }}>{error}</div>
+            <div style={{
+              background: '#ffebee',
+              color: '#c62828',
+              border: '1px solid #ffcdd2',
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 13,
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span>❌</span>
+              {error}
+            </div>
           )}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button

@@ -4,7 +4,7 @@ import { formatTime, formatFileSize } from '../utils/format.js';
 
 const RECALL_WINDOW_MS = 2 * 60 * 1000;
 
-export default function MessageItem({ message, isSelf, onRecall }) {
+export default function MessageItem({ message, isSelf, onRecall, isMentioned }) {
   const [showMenu, setShowMenu] = useState(false);
   const canRecall = isSelf && !message.is_recalled &&
     (Date.now() - message.created_at) < RECALL_WINDOW_MS;
@@ -128,7 +128,13 @@ export default function MessageItem({ message, isSelf, onRecall }) {
         display: 'flex',
         marginBottom: 16,
         justifyContent: isSelf ? 'flex-end' : 'flex-start',
-        position: 'relative'
+        position: 'relative',
+        padding: isMentioned ? '8px' : 0,
+        marginLeft: isMentioned ? -8 : 0,
+        marginRight: isMentioned ? -8 : 0,
+        background: isMentioned ? 'linear-gradient(90deg, #fff9c4 0%, transparent 100%)' : 'transparent',
+        borderLeft: isMentioned ? '4px solid #fbc02d' : 'none',
+        borderRadius: isMentioned ? 4 : 0
       }}
       onMouseEnter={() => canRecall && setShowMenu(true)}
       onMouseLeave={() => setShowMenu(false)}

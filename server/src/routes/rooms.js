@@ -63,7 +63,7 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
     if (!room) return res.status(404).json({ error: '房间不存在' });
     if (room.type === 'private') {
       const valid = await Room.verifyPassword(id, password);
-      if (!valid) return res.status(401).json({ error: '密码错误' });
+      if (!valid) return res.status(400).json({ error: '密码错误' });
     }
     const isMember = await Room.isMember(id, req.user.id);
     if (!isMember) {

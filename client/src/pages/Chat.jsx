@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import RoomList from '../components/RoomList.jsx';
@@ -11,40 +11,182 @@ import { roomApi } from '../utils/api.js';
 export default function Chat() {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [myRooms, setMyRooms] = useState([]);
+  const [roomsMessages, setRoomsMessages] = useState({});
+  const [roomUnread, setRoomUnread] = useState({});
+  const [mentionedMessages, setMentionedMessages] = useState({});
   const { user, logout } = useAuth();
-  const { connected, reconnecting, on, off, emit } = useSocket();
+  const { connected, reconnecting, on, off, emit, wasDisconnected, setWasDisconnected } = useSocket();
   const navigate = useNavigate();
+  const roomsLoadedRef = useRef(false);
+  const lastConnectedRef = useRef(connected);
 
   useEffect(() => {
     loadMyRooms();
   }, []);
 
   useEffect(() => {
-    if (!connected || !currentRoom) return;
+    if (!connected) return;
 
     const handleNewMessage = (message) => {
-      if (message.room_id === currentRoom.id) {
+      if (message.sender_id === user.id) {
+        addMessageToCache(message.room_id, message);
         return;
+      }
+
+      addMessageToCache(message.room_id, message);
+
+      if (message.room_id !== currentRoom?.id) {
+        setRoomUnread(prev => ({
+          ...prev,
+          [message.room_id]: {
+            unread: (prev[message.room_id]?.unread || 0) + 1,
+            hasMention: prev[message.room_id]?.hasMention || (message.mentions || []).includes(user.id)
+          }
+        }));
+        if ((message.mentions || []).includes(user.id)) {
+          setMentionedMessages(prev => ({
+            ...prev,
+            [message.room_id]: [...(prev[message.room_id] || []), message.id]
+          }));
+        }
+      } else {
+        if ((message.mentions || []).includes(user.id)) {
+          setMentionedMessages(prev => ({
+            ...prev,
+            [message.room_id]: [...(prev[message.room_id] || []), message.id]
+          }));
+        }
       }
     };
 
-    const handleMention = ({ message, roomId }) => {
-      console.log('收到@通知:', message, roomId);
+    const handleMessageRecalled = ({ messageId, roomId }) => {
+      setRoomsMessages(prev => {
+        const msgs = prev[roomId];
+        if (!msgs) return prev;
+        return {
+          ...prev,
+          [roomId]: msgs.map(m => m.id === messageId ? { ...m, is_recalled: 1 } : m)
+        };
+      });
     };
 
     on('new_message', handleNewMessage);
-    on('mention_notification', handleMention);
+    on('message_recalled', handleMessageRecalled);
 
     return () => {
       off('new_message', handleNewMessage);
-      off('mention_notification', handleMention);
+      off('message_recalled', handleMessageRecalled);
     };
-  }, [connected, currentRoom, on, off]);
+  }, [connected, currentRoom, user.id, on, off]);
+
+  useEffect(() => {
+    if (!lastConnectedRef.current && connected && wasDisconnected && myRooms.length > 0) {
+      setWasDisconnected(false);
+      const roomIds = myRooms.map(r => r.id);
+      emit('sync_unread', { rooms: roomIds }, (res) => {
+        if (res?.success && res.data) {
+          Object.entries(res.data).forEach(([roomId, data]) => {
+            const unreadMsgs = data.messages || [];
+            if (unreadMsgs.length > 0) {
+              addMessagesToCache(roomId, unreadMsgs);
+              if (roomId !== currentRoom?.id) {
+                const hasMention = unreadMsgs.some(m => (m.mentions || []).includes(user.id));
+                setRoomUnread(prev => ({
+                  ...prev,
+                  [roomId]: {
+                    unread: (prev[roomId]?.unread || 0) + unreadMsgs.length,
+                    hasMention: prev[roomId]?.hasMention || hasMention
+                  }
+                }));
+                if (hasMention) {
+                  const mentionMsgIds = unreadMsgs
+                    .filter(m => (m.mentions || []).includes(user.id))
+                    .map(m => m.id);
+                  setMentionedMessages(prev => ({
+                    ...prev,
+                    [roomId]: [...(prev[roomId] || []), ...mentionMsgIds]
+                  }));
+                }
+              } else {
+                const hasMention = unreadMsgs.some(m => (m.mentions || []).includes(user.id));
+                if (hasMention) {
+                  const mentionMsgIds = unreadMsgs
+                    .filter(m => (m.mentions || []).includes(user.id))
+                    .map(m => m.id);
+                  setMentionedMessages(prev => ({
+                    ...prev,
+                    [roomId]: [...(prev[roomId] || []), ...mentionMsgIds]
+                  }));
+                }
+              }
+            }
+          });
+        }
+      });
+    }
+    lastConnectedRef.current = connected;
+  }, [connected, wasDisconnected, myRooms, currentRoom, user.id, emit, setWasDisconnected]);
+
+  const addMessageToCache = useCallback((roomId, message) => {
+    setRoomsMessages(prev => {
+      const msgs = prev[roomId] || [];
+      if (msgs.some(m => m.id === message.id)) return prev;
+      return {
+        ...prev,
+        [roomId]: [...msgs, message]
+      };
+    });
+  }, []);
+
+  const addMessagesToCache = useCallback((roomId, newMessages) => {
+    setRoomsMessages(prev => {
+      const msgs = prev[roomId] || [];
+      const existingIds = new Set(msgs.map(m => m.id));
+      const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+      if (uniqueNew.length === 0) return prev;
+      return {
+        ...prev,
+        [roomId]: [...msgs, ...uniqueNew]
+      };
+    });
+  }, []);
+
+  const setRoomMessages = useCallback((roomId, messages) => {
+    setRoomsMessages(prev => ({
+      ...prev,
+      [roomId]: messages
+    }));
+  }, []);
+
+  const prependMessages = useCallback((roomId, messages) => {
+    setRoomsMessages(prev => {
+      const existing = prev[roomId] || [];
+      const existingIds = new Set(existing.map(m => m.id));
+      const uniqueNew = messages.filter(m => !existingIds.has(m.id));
+      return {
+        ...prev,
+        [roomId]: [...uniqueNew, ...existing]
+      };
+    });
+  }, []);
+
+  const clearRoomUnread = useCallback((roomId) => {
+    setRoomUnread(prev => ({
+      ...prev,
+      [roomId]: { unread: 0, hasMention: false }
+    }));
+    setMentionedMessages(prev => {
+      const next = { ...prev };
+      delete next[roomId];
+      return next;
+    });
+  }, []);
 
   const loadMyRooms = async () => {
     try {
       const res = await roomApi.getMyRooms();
       setMyRooms(res.data.rooms);
+      roomsLoadedRef.current = true;
       if (res.data.rooms.length > 0 && !currentRoom) {
         setCurrentRoom(res.data.rooms[0]);
       }
@@ -63,6 +205,7 @@ export default function Chat() {
       emit('leave_room', { roomId: currentRoom.id });
     }
     setCurrentRoom(room);
+    clearRoomUnread(room.id);
   };
 
   const handleJoinRoom = (room) => {
@@ -86,6 +229,7 @@ export default function Chat() {
         onSelectRoom={handleSelectRoom}
         onRoomCreated={handleJoinRoom}
         onRefresh={loadMyRooms}
+        roomUnread={roomUnread}
       />
       {currentRoom ? (
         <ChatRoom
@@ -93,6 +237,15 @@ export default function Chat() {
           room={currentRoom}
           currentUser={user}
           connected={connected}
+          messages={roomsMessages[currentRoom.id] || []}
+          setMessages={(msgs) => setRoomMessages(currentRoom.id, msgs)}
+          prependMessages={(msgs) => prependMessages(currentRoom.id, msgs)}
+          addMessage={(msg) => addMessageToCache(currentRoom.id, msg)}
+          mentionedMessageIds={mentionedMessages[currentRoom.id] || []}
+          onMarkRead={() => {
+            roomApi.markRead(currentRoom.id);
+            clearRoomUnread(currentRoom.id);
+          }}
         />
       ) : (
         <div style={{

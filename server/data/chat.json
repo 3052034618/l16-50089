@@ -6,7 +6,15 @@
       "avatar": "",
       "password": "$2a$10$yl9cGs733c87/4zveij0cuEAUxFSIAJcVXS/QRETWj9FHyLhXhCEO",
       "created_at": 1781714419957,
-      "last_online": 1781714794149
+      "last_online": 1781716497942
+    },
+    {
+      "id": "f6c1c17f-d6cf-467b-9ce6-739f433ebff7",
+      "nickname": "Bob",
+      "avatar": "",
+      "password": "$2a$10$GOAKsZ8lHHE5uxiGYs8WHeSbzU1cqhUqhbI0BId8CLYc3liPofkXK",
+      "created_at": 1781716078489,
+      "last_online": 1781716365187
     }
   ],
   "rooms": [
@@ -17,6 +25,22 @@
       "password": "",
       "creator_id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
       "created_at": 1781714611888
+    },
+    {
+      "id": "9eb481db-0ef1-496a-9e38-0b823511afcc",
+      "name": "密码测试房间",
+      "type": "private",
+      "password": "$2a$10$n62ZHxhlgwkoGEHSzjLGAO8Bhu6CP.R1MBOIrvOIlrmLFJMV0qK0S",
+      "creator_id": "f6c1c17f-d6cf-467b-9ce6-739f433ebff7",
+      "created_at": 1781716122818
+    },
+    {
+      "id": "03e8ed33-1ee1-4551-bff2-2c5cfa7744ab",
+      "name": "Alice的密码房间",
+      "type": "private",
+      "password": "$2a$10$YsXUxgR3bwYoughRacyI0.3D3mquU9ft58vMrEZxAPWw2m9Ek/Dqq",
+      "creator_id": "f6c1c17f-d6cf-467b-9ce6-739f433ebff7",
+      "created_at": 1781716292877
     }
   ],
   "room_members": [
@@ -24,7 +48,19 @@
       "room_id": "ca7e1d4c-a95b-4943-b716-8efdff5237d7",
       "user_id": "b5c167b3-b960-4247-8ba9-f5a323446f47",
       "joined_at": 1781714611888,
-      "last_read_at": 1781714794156
+      "last_read_at": 1781716026214
+    },
+    {
+      "room_id": "9eb481db-0ef1-496a-9e38-0b823511afcc",
+      "user_id": "f6c1c17f-d6cf-467b-9ce6-739f433ebff7",
+      "joined_at": 1781716122818,
+      "last_read_at": 1781716122837
+    },
+    {
+      "room_id": "03e8ed33-1ee1-4551-bff2-2c5cfa7744ab",
+      "user_id": "f6c1c17f-d6cf-467b-9ce6-739f433ebff7",
+      "joined_at": 1781716292877,
+      "last_read_at": 1781716292897
     }
   ],
   "messages": [

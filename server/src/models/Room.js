@@ -92,9 +92,10 @@ const Room = {
   },
 
   async findPublicRooms() {
-    const rows = await all('rooms', { type: 'public' }, { orderBy: ['created_at', 'desc'] });
+    const rows = await all('rooms', {}, { orderBy: ['created_at', 'desc'] });
     const result = [];
     for (const room of rows) {
+      if (room.type === 'private' && /^私聊_/.test(room.name)) continue;
       result.push(await enrichWithCount(room));
     }
     return result;
